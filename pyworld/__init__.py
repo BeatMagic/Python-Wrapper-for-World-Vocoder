@@ -10,8 +10,8 @@ For more information, see https://github.com/JeremyCCHsu/Python-Wrapper-for-Worl
 
 from __future__ import division, print_function, absolute_import
 
-import pkg_resources
+from importlib.metadata import version
 
-__version__ = pkg_resources.get_distribution('pyworld').version
+__version__ = version('pyworld')
 
 from .pyworld import *
