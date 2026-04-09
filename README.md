@@ -1,13 +1,5 @@
 # PyWORLD - A Python wrapper of WORLD Vocoder
 
-
-| **`Linux`** | **`Windows`** |
-|-----------------|-----------|
-| [![Build Status](https://app.travis-ci.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder.svg?branch=master)](https://app.travis-ci.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder) | [![Build Status](https://ci.appveyor.com/api/projects/status/github/JeremyCCHsu/Python-Wrapper-for-World-Vocoder?svg=true)](https://ci.appveyor.com/project/JeremyCCHsu/python-wrapper-for-world-vocoder) |
-
-
-
-
 WORLD Vocoder is a fast and high-quality vocoder
 which parameterizes speech into three components:
 
@@ -18,7 +10,9 @@ which parameterizes speech into three components:
 It can also (re)synthesize speech using these features (see examples below).
 
 For more information, please visit Dr. Morise's [WORLD repository](https://github.com/mmorise/World)
-and the [official website of WORLD Vocoder](http://ml.cs.yamanashi.ac.jp/world/english)
+and the [official website of WORLD Vocoder](http://ml.cs.yamanashi.ac.jp/world/english).
+
+This fork uses the [performance-optimized branch](https://github.com/BeatMagic/World/tree/perf/harvest-optimization) with FFTW3 support and Harvest optimizations.
 
 
 ## APIs
@@ -48,41 +42,44 @@ See more info using `help`.
 
 ## Installation
 
-### Using Pip
-`pip install pyworld`
-<br/>
+This fork uses the [BeatMagic/World](https://github.com/BeatMagic/World/tree/perf/harvest-optimization) performance-optimized branch, which includes Harvest memory pooling, recursive oscillators, and an optional FFTW3 FFT backend.
+
+### One-Line Install
+```bash
+pip install git+https://github.com/BeatMagic/Python-Wrapper-for-World-Vocoder.git
+```
+The build process will automatically:
+1. Clone the optimized World C++ source
+2. Download and compile [FFTW3](https://www.fftw.org/) from source as a static library
+3. Build the Python extension with `-O3 -ffast-math` optimization flags
+
+### FFT Backend Selection
+By default the FFTW3 backend is used. To use the built-in Ooura FFT instead (no external dependencies):
+```bash
+PYWORLD_FFT_BACKEND=ooura pip install git+https://github.com/BeatMagic/Python-Wrapper-for-World-Vocoder.git
+```
 
 ### Building from Source
 ```bash
-git clone https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder.git
+git clone --recurse-submodules https://github.com/BeatMagic/Python-Wrapper-for-World-Vocoder.git
 cd Python-Wrapper-for-World-Vocoder
-git submodule update --init
-pip install -U pip
-pip install -r requirements.txt
 pip install .
 ```
-It will automatically `git clone` Morise's World Vocoder (C++ version).<br/>
-(It seems to me that using `virtualenv` or `conda` is the best practice.)<br/>
-<br/>
 
 ### Installation Validation
-You can validate installation by running
 ```bash
 cd demo
 python demo.py
 ```
-to see if you get results in `test/` direcotry.
-(Please avoid writing and executing codes in the `Python-Wrapper-for-World-Vocoder` folder for now.)<br/>
 
 ### Environment/Dependencies
 - Operating systems
   - Linux Ubuntu 14.04+
+  - macOS (Intel / Apple Silicon)
   - Windows (thanks to [wuaalb](https://github.com/wuaalb))
   - WSL
-- Python
-  - 3.7+
-
-You can install dependencies these by `pip install -r requirements.txt`
+- Python 3.7+
+- A C++ compiler (Xcode CLT on macOS, `build-essential` on Linux)
 
 
 
@@ -125,18 +122,10 @@ You can install dependencies these by `pip install -r requirements.txt`
 
 
 ### Other Installation Suggestions
-1. Use `pip install .` is safer and you can easily uninstall pyworld by `pip uninstall pyworld`
-  - For Mac users: You might need to do `MACOSX_DEPLOYMENT_TARGET=10.9 pip install .` See [issue](https://github.com/SeanNaren/warp-ctc/issues/129#issuecomment-502349652).
-2. Another way to install pyworld is via<br/>
-   `python setup.py install`<br/>
-   - Add `--user` if you don't have root access<br/>
-   - Add `--record install.txt` to track the installation dir<br/>
-3. If you just want to try out some experiments, execute<br/>
+1. For Mac users: You might need to do `MACOSX_DEPLOYMENT_TARGET=10.9 pip install .` See [issue](https://github.com/SeanNaren/warp-ctc/issues/129#issuecomment-502349652).
+2. If you just want to try out some experiments, execute<br/>
   `python setup.py build_ext --inplace`<br/>
   Then you can use PyWorld from this directory.<br/>
-  You can also copy the resulting **pyworld.so** (pyworld.{arch}.pyd on Windows) file to
-  `~/.local/lib/python2.7/site-packages` (or corresponding Windows directory)
-  so that you can use it everywhere like an installed package.<br/>
   Alternatively you can copy/symlink the compiled files using pip, e.g. `pip install -e .`
 
 
