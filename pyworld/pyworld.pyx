@@ -55,6 +55,22 @@ cdef extern from "world/harvest.h":
         double *temporal_positions, double *f0) except + nogil
 
 
+cdef extern from "world/compositef0.h":
+    ctypedef struct CompositeF0Option:
+        double f0_floor
+        double f0_ceil
+        double frame_period
+        int zcr_frame_length
+        double zcr_threshold
+        double gaussian_sigma
+
+    void InitializeCompositeF0Option(CompositeF0Option *option) except +
+    int GetSamplesForCompositeF0(int fs, int x_length, double frame_period)
+    void CompositeF0(const double *x, int x_length, int fs,
+        const CompositeF0Option *option,
+        double *temporal_positions, double *f0) except + nogil
+
+
 cdef extern from "world/d4c.h":
     ctypedef struct D4COption:
         double threshold
@@ -193,6 +209,67 @@ def harvest(np.ndarray[double, ndim=1, mode="c"] x not None, int fs,
         np.zeros(f0_length, dtype=np.dtype('float64'))
     with (nogil, cython.boundscheck(False)):
         Harvest(&x[0], x_length, fs, &option, &temporal_positions[0], &f0[0])
+    return f0, temporal_positions
+
+
+def compositef0(np.ndarray[double, ndim=1, mode="c"] x not None, int fs,
+                f0_floor=50.0, f0_ceil=1100.0,
+                frame_period=default_frame_period,
+                zcr_frame_length=2048, zcr_threshold=0.002,
+                gaussian_sigma=4.0):
+    """CompositeF0 F0 extraction algorithm.
+
+    Combines DIO and Harvest with zero-crossing rate (ZCR) analysis
+    for robust voiced/unvoiced decision.
+
+    Parameters
+    ----------
+    x : ndarray
+        Input waveform signal.
+    fs : int
+        Sample rate of input signal in Hz.
+    f0_floor : float
+        Lower F0 limit in Hz.
+        Default: 50.0
+    f0_ceil : float
+        Upper F0 limit in Hz.
+        Default: 1100.0
+    frame_period : float
+        Period between consecutive frames in milliseconds.
+        Default: 5.0
+    zcr_frame_length : int
+        Sample window for zero-crossing rate computation.
+        Default: 2048
+    zcr_threshold : float
+        Threshold for ZCR derivative in voicing decision.
+        Default: 0.002
+    gaussian_sigma : float
+        Sigma for Gaussian smoothing of ZCR derivative.
+        Default: 4.0
+
+    Returns
+    -------
+    f0 : ndarray
+        Estimated F0 contour.
+    temporal_positions : ndarray
+        Temporal position of each frame.
+    """
+    cdef int x_length = <int>len(x)
+    cdef CompositeF0Option option
+    InitializeCompositeF0Option(&option)
+    option.f0_floor = f0_floor
+    option.f0_ceil = f0_ceil
+    option.frame_period = frame_period
+    option.zcr_frame_length = zcr_frame_length
+    option.zcr_threshold = zcr_threshold
+    option.gaussian_sigma = gaussian_sigma
+    f0_length = GetSamplesForCompositeF0(fs, x_length, option.frame_period)
+    cdef np.ndarray[double, ndim=1, mode="c"] f0 = \
+        np.zeros(f0_length, dtype=np.dtype('float64'))
+    cdef np.ndarray[double, ndim=1, mode="c"] temporal_positions = \
+        np.zeros(f0_length, dtype=np.dtype('float64'))
+    with (nogil, cython.boundscheck(False)):
+        CompositeF0(&x[0], x_length, fs, &option, &temporal_positions[0], &f0[0])
     return f0, temporal_positions
 
 
