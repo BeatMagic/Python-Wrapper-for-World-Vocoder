@@ -12,7 +12,7 @@ It can also (re)synthesize speech using these features (see examples below).
 For more information, please visit Dr. Morise's [WORLD repository](https://github.com/mmorise/World)
 and the [official website of WORLD Vocoder](http://ml.cs.yamanashi.ac.jp/world/english).
 
-This fork uses the [performance-optimized branch](https://github.com/BeatMagic/World/tree/perf/harvest-optimization) with FFTW3 support and Harvest optimizations.
+This fork tracks the [performance-optimized branch](https://github.com/BeatMagic/World/tree/perf/harvest-optimization) of WORLD, which adds a runtime-dispatched AVX-512 path for the CompositeF0 analysis pipeline (DIO + Harvest + ZCR merge) plus build-time integration with [AOCL-FFTW](https://github.com/amd/amd-fftw) — AMD's fork of FFTW 3.3.10 with AVX-512 codelets tuned for Zen4 / Zen5.
 
 
 ## APIs
@@ -50,14 +50,60 @@ pip install git+https://github.com/BeatMagic/Python-Wrapper-for-World-Vocoder.gi
 ```
 The build process will automatically:
 1. Clone the optimized World C++ source
-2. Download and compile [FFTW3](https://www.fftw.org/) from source as a static library
-3. Build the Python extension with `-O3 -ffast-math` optimization flags
+2. Pick an FFT backend based on the host (see below)
+3. Build it from source as a static library
+4. Compile the Python extension with `-O3 -ffast-math` and, where supported, per-file AVX-512 flags on `simd_kernels_avx512.cpp`
 
-### FFT Backend Selection
-By default the FFTW3 backend is used. To use the built-in Ooura FFT instead (no external dependencies):
+### FFT backend auto-selection
+
+| Host                                   | Backend chosen        | Notes                                                                                          |
+| :------------------------------------- | :-------------------- | :--------------------------------------------------------------------------------------------- |
+| **Linux x86_64, AMD Zen5** (family 26) | **AOCL-FFTW 5.2**     | Forced — pip install fails loudly if build deps are missing (no silent fallback).              |
+| Linux x86_64, AMD Zen1–Zen4            | AOCL-FFTW 5.2 if deps are present, else upstream FFTW 3.3.10 | Silent fallback OK — Zen4 double-pumps AVX-512 so the codelet win is smaller. |
+| Linux x86_64, Intel / non-AMD          | upstream FFTW 3.3.10  | AOCL is AMD-tuned; we don't force it.                                                          |
+| Windows / macOS / non-x86_64           | upstream FFTW 3.3.10  | AOCL is Linux-only in this wrapper.                                                            |
+
+**AVX-512 kernels** (WORLD's runtime-dispatched SIMD path) are enabled whenever the compiler accepts `-mavx512f -mavx512dq -mavx512bw -mavx512vl -mfma -mbmi2`. If not, the library still builds and falls back to scalar at runtime. Override with `PYWORLD_AVX512=0`.
+
+### Build dependencies for the AOCL-FFTW path
+
+AOCL-FFTW is cloned from source during `pip install` and requires the full autotools toolchain, OCaml (for the AVX-512 codelet generator), and Texinfo (for the `doc/` subdir that FFTW's top-level `make` still builds by default):
+
+**Ubuntu / Debian:**
 ```bash
-PYWORLD_FFT_BACKEND=ooura pip install git+https://github.com/BeatMagic/Python-Wrapper-for-World-Vocoder.git
+sudo apt-get install -y build-essential git autoconf automake libtool-bin ocaml texinfo
 ```
+Two gotchas worth calling out:
+- On Ubuntu 22.04+ the `libtool` package does **not** install the `libtool` binary — you need `libtool-bin`.
+- `texinfo` is required even though we only want the library. Without `makeinfo`, `make` fails partway through `doc/fftw3.info`. Installing `texinfo` is the cheapest fix (~10 MB); alternatively use `PYWORLD_FFT_BACKEND=fftw3` to skip AOCL entirely.
+
+**Fedora / RHEL:**
+```bash
+sudo dnf install -y gcc gcc-c++ make git autoconf automake libtool ocaml texinfo
+```
+
+**Arch:**
+```bash
+sudo pacman -S --needed base-devel git autoconf automake libtool ocaml texinfo
+```
+
+### Skipping AOCL (fast install)
+
+AOCL-FFTW takes 3–8 minutes to compile from source the first time. If you don't need the AVX-512 FFT win (or you just want a quick smoke test), force the upstream FFTW 3.3.10 path:
+
+```bash
+PYWORLD_FFT_BACKEND=fftw3 pip install git+https://github.com/BeatMagic/Python-Wrapper-for-World-Vocoder.git
+```
+Upstream FFTW builds in about 30 s and still gives you AVX2/FMA codelets. The WORLD AVX-512 kernels (the `-DWORLD_HAS_AVX512` path) remain active regardless of FFT backend choice.
+
+Other supported values for `PYWORLD_FFT_BACKEND`:
+
+| Value    | Effect                                                                                  |
+| :------- | :-------------------------------------------------------------------------------------- |
+| `auto`   | Default. Follows the table above.                                                       |
+| `aocl`   | Force AOCL-FFTW. Fails with a clear error if build deps are missing.                    |
+| `fftw3`  | Force upstream FFTW 3.3.10. Always works as long as `cc` is present.                    |
+| `ooura`  | Use the bundled Ooura FFT. No external downloads, slowest of the three, portable.       |
 
 ### Building from Source
 ```bash
@@ -77,9 +123,10 @@ python demo.py
   - Linux Ubuntu 14.04+
   - macOS (Intel / Apple Silicon)
   - Windows (thanks to [wuaalb](https://github.com/wuaalb))
-  - WSL
+  - WSL 2 (Zen5 auto-detection requires `/proc/cpuinfo`, so WSL 1 is not supported for the AOCL path)
 - Python 3.7+
-- A C++ compiler (Xcode CLT on macOS, `build-essential` on Linux)
+- A C++ compiler (Xcode CLT on macOS, `build-essential` on Linux) with AVX-512 flag support (GCC ≥ 5, Clang ≥ 3.9) for the AVX-512 kernels
+- For the AOCL-FFTW backend only: `autoconf`, `automake`, `libtool-bin`, `ocaml`, `texinfo`, `make`, `git` (see the "Build dependencies for the AOCL-FFTW path" section above)
 
 
 
