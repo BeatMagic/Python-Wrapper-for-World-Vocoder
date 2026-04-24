@@ -386,3 +386,6 @@ Temporary Items
 
 # Linux trash folder which might appear on any partition or disk
 .Trash-*
+
+# Generated at pip install time by setup.py _write_build_info()
+pyworld/_build_info.py

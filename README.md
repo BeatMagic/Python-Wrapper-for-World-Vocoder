@@ -113,6 +113,29 @@ pip install .
 ```
 
 ### Installation Validation
+Quick sanity check — confirms which FFT backend and SIMD tier your install actually picked up (useful since `pip install` without `-v` hides the build-time `[pyworld]` log lines):
+
+```bash
+python -c "import pyworld as pw; print(pw.build_info())"
+```
+
+Example output on a Zen5 Linux box:
+```
+pyworld 0.4.0  FFT=aocl  AVX-512=on  WORLD=8e31ece  built=2026-04-24T22:25:16Z
+```
+
+Individual attributes are also exposed:
+```python
+>>> import pyworld as pw
+>>> pw.__fft_backend__      # 'aocl' | 'fftw3' | 'ooura' | 'unknown'
+'aocl'
+>>> pw.__avx512_enabled__   # True | False
+True
+>>> pw.__world_commit__     # short git SHA of the WORLD submodule at build time
+'8e31ece'
+```
+
+Full demo:
 ```bash
 cd demo
 python demo.py
