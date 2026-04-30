@@ -324,8 +324,15 @@ class build_ext(_build_ext):
             return 'unknown'
 
     def _write_build_info(self, backend, avx512_on):
-        """Emit pyworld/_build_info.py with the resolved build parameters."""
-        info_path = join(dirname(__file__), 'pyworld', '_build_info.py')
+        """Emit pyworld/_build_info.py with the resolved build parameters.
+
+        Writes to two paths:
+        - Source dir: covers editable installs (pip install -e .) and any
+          in-tree python invocation that imports pyworld directly.
+        - self.build_lib: covers wheel-based installs (pip install git+...,
+          pip install .). Files in build_lib get copied into the wheel; the
+          source-dir copy is not visible to the installed package.
+        """
         ts = datetime.datetime.now(datetime.timezone.utc).strftime(
             '%Y-%m-%dT%H:%M:%SZ')
         content = (
@@ -340,9 +347,17 @@ class build_ext(_build_ext):
             commit=self._world_commit(),
             ts=ts,
         )
-        with open(info_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        print('[pyworld] Build info written to {}'.format(info_path))
+        targets = []
+        src_path = join(dirname(__file__), 'pyworld', '_build_info.py')
+        targets.append(src_path)
+        build_lib = getattr(self, 'build_lib', None)
+        if build_lib:
+            targets.append(join(build_lib, 'pyworld', '_build_info.py'))
+        for path in targets:
+            os.makedirs(dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print('[pyworld] Build info written to {}'.format(path))
 
     def build_extensions(self):
         # Step 1: ensure World C++ sources exist
