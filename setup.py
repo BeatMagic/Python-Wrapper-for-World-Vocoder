@@ -294,7 +294,17 @@ class build_ext(_build_ext):
             '--disable-fortran',
             '--enable-sse2', '--enable-avx', '--enable-avx2',
             '--enable-avx512', '--enable-amd-opt',
-            '--enable-dynamic-dispatcher',
+            # NOTE: --enable-dynamic-dispatcher uses GNU ifunc to pick
+            # codelets at runtime via dynamic-linker resolvers. We've seen
+            # that fail with SIGSEGV in elf_machine_rela on at least one
+            # Zen5 EPYC + glibc combination, where the ifunc resolver for
+            # AOCL's amd-opt symbols mis-resolves and the loader jumps to a
+            # garbage address while relocating pyworld.so. With AVX-512
+            # codelets compiled in (--enable-avx512), AOCL's planner still
+            # selects the best codelet at plan time via cpuid, so we lose
+            # nothing functionally by dropping the ifunc layer.
+            # MinGW already required this for the same reason (PE-COFF has
+            # no ifunc).
         ]
         subprocess.check_call(cfg, cwd=src, env=env)
         subprocess.check_call(
